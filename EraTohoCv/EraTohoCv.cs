@@ -10,6 +10,7 @@ using Format = RichConsole.Console.Format;
 using Console = RichConsole.Console.SimpleConsole;
 using RichConsole.Argument;
 
+
 namespace EraTohoCv
 {
     public class UI : Named

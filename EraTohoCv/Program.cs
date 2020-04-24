@@ -18,17 +18,6 @@ namespace EraTohoCv
 
     static class Program
     {
-        class Test : Named
-        {
-            public string 이름 { get; set; }
-            public int i;
-
-            public Test(int i,string name)
-            {
-                this.i = i;
-                this.이름 = name;
-            }
-        }
 
         static void Main()
         {
@@ -41,6 +30,9 @@ namespace EraTohoCv
             Console.WriteLine("?????");
             Console.ReadLine();
             throw new Exception();
+
+
+            
         }
         public static void Test1()
         {
@@ -92,9 +84,5 @@ namespace EraTohoCv
             Func<IEnumerator> e = Test6;
 
         }
-    }
-    public class 한글관련
-    {
-
     }
 }
