@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <StartupObject>EraTohoCv.Program</StartupObject>
+    <ApplicationIcon />
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\ObjectSaver\ObjectSaver\ObjectSaver.csproj" />
+    <ProjectReference Include="..\..\RichConsole2\RichConsole2\RichConsole.csproj" />
+  </ItemGroup>
+
+</Project>
