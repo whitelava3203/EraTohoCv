@@ -1,4 +1,6 @@
-﻿namespace ConsoleApp
+﻿using System.Windows.Forms;
+
+namespace ConsoleApp
 {
     partial class ConsoleManager
     {
@@ -55,8 +57,9 @@
             this.Controls.Add(this.ConsoleInput);
             this.ForeColor = System.Drawing.Color.DarkCyan;
             this.Name = "RichConsole";
-            this.Load += new System.EventHandler(this.Form1_Load);
+            this.Load += new System.EventHandler(this.Form_Load);
             this.Shown += new System.EventHandler(this.RichConsole_Shown);
+            this.FormClosed += new FormClosedEventHandler(this.Form_FormClosed);
             this.ResumeLayout(false);
             this.PerformLayout();
 

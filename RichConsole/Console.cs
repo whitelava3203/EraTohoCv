@@ -101,6 +101,23 @@ namespace RichConsole
         private static char[] SystemWords = { '◈', '▣', '◐', '◑' };
         public class Format
         {
+            public override string ToString()
+            {
+                StringBuilder sb = new StringBuilder();
+                foreach(TextData data in datalist)
+                {
+                    if(data is TextData.NextLine)
+                    {
+                        sb.AppendLine();
+                    }
+                    else
+                    {
+                        sb.Append((data as TextData.Writeable).str);
+                    }
+                }
+                return sb.ToString();
+            }
+
             static Format()
             {
                 if (!IsInitialized) Initialize();
@@ -115,34 +132,36 @@ namespace RichConsole
             {
                 this.tags.AddRange(tags);
             }
+            public Format(IEnumerable<TextData> datalist)
+            {
+                this.datalist = datalist.ToList();
+            }
 
-            List<WriteAble> args = new List<WriteAble>();
+            List<TextData> datalist = new List<TextData>();
             public List<string> tags = new List<string>();
             public Format AddTags(params string[] tags)
             {
                 this.tags.AddRange(tags);
-                foreach (WriteAble arg in args)
+                foreach (TextData data in datalist)
                 {
-                    arg.tags.AddRange(tags);
+                    data.arg.tags = data.arg.tags.Concat(tags).ToArray();
                 }
                 return this;
             }
-
-
             public Format Append(string str)
             {
-                args.Add(new WriteAble.Text(str, tags.ToArray()));
+                datalist.Add(new TextData.Text(str, tags.ToArray()));
                 return this;
             }
             public Format AppendLine(string str)
             {
                 Append(str);
-                args.Add(new WriteAble.NextLine(tags.ToArray()));
+                datalist.Add(new TextData.NextLine(tags.ToArray()));
                 return this;
             }
             public Format AppendLine()
             {
-                args.Add(new WriteAble.NextLine(tags.ToArray()));
+                datalist.Add(new TextData.NextLine(tags.ToArray()));
                 return this;
             }
             public Format AppendButton(string str)
@@ -151,25 +170,25 @@ namespace RichConsole
             }
             public Format AppendButton(string str, string name)
             {
-                args.Add(new WriteAble.Button(str, name, tags.ToArray()));
+                datalist.Add(new TextData.Button(str, name, tags.ToArray()));
                 return this;
             }
             public Format AppendButton(string str, string name, params string[] tags)
             {
                 List<string> newtags = tags.ToList();
                 newtags.Add(name);
-                args.Add(new WriteAble.Button(str, name, newtags.ToArray()));
+                datalist.Add(new TextData.Button(str, name, newtags.ToArray()));
                 return this;
             }
             public Format AppendInputText(string str, string name)
             {
-                args.Add(new WriteAble.InputText(str, name, tags.ToArray()));
+                datalist.Add(new TextData.InputText(str, name, tags.ToArray()));
                 return this;
             }
             public Format AppendInputText(string str, string name, params string[] tags)
             {
                 List<string> newtags = tags.ToList();
-                args.Add(new WriteAble.InputText(str, name, newtags.ToArray()));
+                datalist.Add(new TextData.InputText(str, name, newtags.ToArray()));
                 return this;
             }
             public Format ToButton(string str)
@@ -178,38 +197,38 @@ namespace RichConsole
             }
             public Format ToButton(string str, string name)
             {
-                return ToType<WriteAble.Button>(str, name, "");
+                return ToType<TextData.Button>(str, name, "");
             }
             public Format ToButton(string str, string name, params string[] tags)
             {
-                return ToType<WriteAble.Button>(str, name, tags);
+                return ToType<TextData.Button>(str, name, tags);
             }
             public Format ToInputText(string str, string name)
             {
-                return ToType<WriteAble.InputText>(str, name);
+                return ToType<TextData.InputText>(str, name);
             }
             public Format ToInputText(string str, string name, params string[] tags)
             {
-                return ToType<WriteAble.InputText>(str, name, tags);
+                return ToType<TextData.InputText>(str, name, tags);
             }
-            public void Invoke()
+            public void Print()
             {
-                LowConsole.Write(args);
+                LowConsole.Write(datalist);
             }
-            public void InvokeLine()
+            public void PrintLine()
             {
-                AppendLine();
-                LowConsole.Write(args);
+                this.AppendLine();
+                LowConsole.Write(datalist);
             }
-            private Format ToType<T>(string strorigin, string name, params string[] tags) where T : WriteAble.Complexed, new()
+            private Format ToType<T>(string strorigin, string name, params string[] tags) where T : TextData.Writeable, new()
             {
                 string str = FixString(strorigin);
 
-                foreach (WriteAble arg in args)
+                foreach (TextData arg in datalist)
                 {
-                    if (arg is WriteAble.Text)
+                    if (arg is TextData.Text)
                     {
-                        WriteAble.Text text = arg as WriteAble.Text;
+                        TextData.Text text = arg as TextData.Text;
                         {
                             if (text.str.Contains(str))
                             {
@@ -217,28 +236,28 @@ namespace RichConsole
                                 {
                                     T b1 = new T();
                                     b1.str = text.str.Substring(0, str.Length);
-                                    b1.name = name;
-                                    b1.tags = text.tags;
-                                    b1.tags.AddRange(tags);
-                                    WriteAble.Text t2 = text;
+                                    b1.arg.name = name;
+                                    b1.arg.tags = text.arg.tags;
+                                    b1.arg.tags = b1.arg.tags.Concat(tags).ToArray();
+                                    TextData.Text t2 = text;
                                     t2.str = text.str.Substring(str.Length);
 
-                                    args.Replace<WriteAble>(text, (WriteAble)b1, t2);
+                                    datalist.Replace<TextData>(text, (TextData)b1, t2);
                                     return this;
                                 }
                                 else if (text.str.EndsWith(str))
                                 {
-                                    WriteAble.Text t1 = text;
+                                    TextData.Text t1 = text;
                                     t1.str = text.str.Substring(0, str.Length);
 
                                     T b2 = new T();
                                     b2.str = text.str.Substring(str.Length);
-                                    b2.name = name;
-                                    b2.tags = text.tags;
-                                    b2.tags.AddRange(tags);
+                                    b2.arg.name = name;
+                                    b2.arg.tags = text.arg.tags;
+                                    b2.arg.tags = b2.arg.tags.Concat(tags).ToArray();
 
 
-                                    args.Replace<WriteAble>(text, t1, (WriteAble)b2);
+                                    datalist.Replace<TextData>(text, t1, (TextData)b2);
                                     return this;
                                 }
                                 else
@@ -246,20 +265,20 @@ namespace RichConsole
                                     int index = text.str.IndexOf(str);
                                     int length = str.Length;
 
-                                    WriteAble.Text t1 = text;
+                                    TextData.Text t1 = text;
                                     t1.str = text.str.Substring(0, index);
 
                                     T b2 = new T();
                                     b2.str = text.str.Substring(index, length);
-                                    b2.name = name;
-                                    b2.tags = text.tags;
-                                    b2.tags.AddRange(tags);
+                                    b2.arg.name = name;
+                                    b2.arg.tags = text.arg.tags;
+                                    b2.arg.tags = b2.arg.tags.Concat(tags).ToArray();
 
-                                    WriteAble.Text t3 = text;
+                                    TextData.Text t3 = text;
                                     t3.str = text.str.Substring(index + length);
 
 
-                                    args.Replace<WriteAble>(text, t1, (WriteAble)b2, t3);
+                                    datalist.Replace<TextData>(text, t1, (TextData)b2, t3);
                                     return this;
                                 }
                             }
@@ -269,10 +288,47 @@ namespace RichConsole
                 }
                 return this;
             }
-            public static Format Stack(Format f1, Format f2)
+            public static Format Concat(params Format[] formats)
             {
-                List<List<WriteAble>> f1lists = f1.SeperateFormatToLines();
-                List<List<WriteAble>> f2lists = f2.SeperateFormatToLines();
+                if(formats.Length == 0)
+                {
+                    return new Format();
+                }
+
+                IEnumerable<TextData> datalist = formats[0].datalist;
+
+                if (formats.Length == 1)
+                {
+                    return new Format(datalist);
+                }
+
+                for (int i = 1; i < formats.Length; i++) 
+                {
+                    datalist = datalist.Concat(formats[i].datalist);
+                }
+
+                return new Format(datalist);
+            }
+            public static Format Stack(params Format[] formats)
+            {
+                if (formats.Length == 1)
+                {
+                    return formats[0];
+                }
+
+                Format output = formats[0];
+
+                for(int i=1;i<formats.Length -1; i++)
+                {
+                    output = Stack(output, formats[i]);
+                }
+
+                return output;
+            }
+            private static Format Stack(Format f1, Format f2)
+            {
+                List<List<TextData>> f1lists = f1.SeperateFormatToLines();
+                List<List<TextData>> f2lists = f2.SeperateFormatToLines();
 
                 int min = Math.Min(f1lists.Count, f2lists.Count);
 
@@ -300,18 +356,18 @@ namespace RichConsole
                     return CombineLinesToFormat(f1lists);
                 }
             }
-            private List<List<WriteAble>> SeperateFormatToLines()
+            private List<List<TextData>> SeperateFormatToLines()
             {
-                List<List<WriteAble>> arglist = new List<List<WriteAble>>();
+                List<List<TextData>> arglist = new List<List<TextData>>();
 
 
-                List<WriteAble> imshi = new List<WriteAble>();
-                foreach (WriteAble arg in this.args)
+                List<TextData> imshi = new List<TextData>();
+                foreach (TextData arg in this.datalist)
                 {
-                    if (arg is WriteAble.NextLine)
+                    if (arg is TextData.NextLine)
                     {
                         arglist.Add(imshi);
-                        imshi = new List<WriteAble>();
+                        imshi = new List<TextData>();
                     }
                     else
                     {
@@ -322,14 +378,14 @@ namespace RichConsole
 
                 return arglist;
             }
-            private static Format CombineLinesToFormat(List<List<WriteAble>> arglist)
+            private static Format CombineLinesToFormat(List<List<TextData>> arglist)
             {
                 Format format = new Format();
 
-                foreach (List<WriteAble> arg in arglist)
+                foreach (List<TextData> arg in arglist)
                 {
-                    format.args.AddRange(arg);
-                    format.args.Add(new WriteAble.NextLine());
+                    format.datalist.AddRange(arg);
+                    format.datalist.Add(new TextData.NextLine());
                 }
 
                 return format;
@@ -364,6 +420,7 @@ namespace RichConsole
                 return this;
             }
         }
+
         public static class RichConsole
         {
             static RichConsole()
@@ -386,20 +443,20 @@ namespace RichConsole
             }
             public static void WriteLine(string str)
             {
-                List<WriteAble> arglist = Sepreate(str);
-                arglist.Add(new WriteAble.NextLine());
+                List<TextData> arglist = Sepreate(str);
+                arglist.Add(new TextData.NextLine());
                 LowConsole.Write(arglist);
             }
             public static void WriteLine()
             {
-                List<WriteAble> arglist = new List<WriteAble>();
-                arglist.Add(new WriteAble.NextLine());
+                List<TextData> arglist = new List<TextData>();
+                arglist.Add(new TextData.NextLine());
                 LowConsole.Write(arglist);
             }
 
-            private static List<WriteAble> Sepreate(string str)
+            private static List<TextData> Sepreate(string str)
             {
-                List<WriteAble> arglist = new List<WriteAble>();
+                List<TextData> arglist = new List<TextData>();
                 string str2 = str.Replace(Environment.NewLine, SystemWords[0].ToString());
                 StringBuilder sb = new StringBuilder();
                 for (int i = 0; i < str2.Length; i++)
@@ -412,14 +469,14 @@ namespace RichConsole
                     {
                         if (sb.Length > 0)
                         {
-                            arglist.Add(new WriteAble.Text(sb.ToString()));
+                            arglist.Add(new TextData.Text(sb.ToString()));
                             sb.Clear();
                         }
-                        arglist.Add(new WriteAble.NextLine());
+                        arglist.Add(new TextData.NextLine());
                     }
                 }
 
-                arglist.Add(new WriteAble.Text(sb.ToString()));
+                arglist.Add(new TextData.Text(sb.ToString()));
                 sb.Clear();
 
                 return arglist;
@@ -428,7 +485,7 @@ namespace RichConsole
             {
                 return MiddleConsole.ReadLine();
             }
-            public static WriteAble.Button ReadButton()
+            public static ButtonReturn ReadButton()
             {
                 return MiddleConsole.ReadButton();
             }
@@ -436,10 +493,10 @@ namespace RichConsole
             {
                 return MiddleConsole.ReadButton().name;
             }
-            public static WriteAble.Button ReadButtonSecure(params string[] tags)
+            public static ButtonReturn ReadButtonSecure(params string[] tags)
             {
             entry1:
-                WriteAble.Button btn = MiddleConsole.ReadButton();
+                ButtonReturn btn = MiddleConsole.ReadButton();
             entry2:
                 Func<string, bool> Checker = (str) =>
                 {
@@ -460,8 +517,8 @@ namespace RichConsole
                     format.AppendLine("[예]　　　　[아니오]");
                     format.ToButton("[예]", "예");
                     format.ToButton("[아니오]", "아니오");
-                    format.Invoke();
-                    WriteAble.Button btn2 = SimpleConsole.ReadButton();
+                    format.Print();
+                    ButtonReturn btn2 = SimpleConsole.ReadButton();
                     if (btn2.name == "예")
                     {
                         return btn;
@@ -497,7 +554,7 @@ namespace RichConsole
             {
                 LowConsole.Clear((arg) =>
                 {
-                    if (arg.tags.Contains(tag))
+                    if (arg.arg.tags.Contains(tag))
                     {
                         return true;
                     }
@@ -508,6 +565,8 @@ namespace RichConsole
                 });
             }
         }
+
+
         internal static class MiddleConsole
         {
 
@@ -518,62 +577,96 @@ namespace RichConsole
                 return Task.Run<string>(Console.consoleApp.ReadLine).Result;
             }
 
-            public static WriteAble.Button ReadButton()
+            public static ButtonReturn ReadButton()
             {
-                return Task.Run<WriteAble.Button>(Console.consoleApp.ReadButton).Result;
+                return Task.Run<TextData.Button>(Console.consoleApp.ReadButton).Result.arg;
             }
 
 
         }
         internal static class LowConsole
         {
-            public static List<WriteAble.NextLine> nextlinelist = new List<WriteAble.NextLine>();
-
-            public static void Write(IEnumerable<WriteAble> line)
+            public static List<TextData.NextLine> nextlinelist = new List<TextData.NextLine>();
+            private static bool FindNextNull(out int index)
             {
-                IEnumerator<WriteAble> e = line.GetEnumerator();
+                int i;
+                for (i=0;i<nextlinelist.Count;i++)
+                {
+                    if (nextlinelist[i] == null)
+                    {
+                        index = i;
+                        return true;
+                    }
+                }
+                index = i;
+                return false;
+            }
+            private static void AddNextLine(TextData.NextLine nextline)
+            {
+                if(FindNextNull(out int index))
+                {
+                    nextlinelist[index] = nextline;
+                }
+                else
+                {
+                    nextlinelist.Add(nextline);
+                }
+            }
+            private static void FixLineEnd()
+            {
+                while(nextlinelist.Last() == null)
+                {
+                    nextlinelist.RemoveAt(nextlinelist.Count-1);
+                }
+            }
+            private static void RemoveAllLine(Predicate<TextData.NextLine> predicate)
+            {
+                for(int i=0;i<nextlinelist.Count;i++)
+                {
+                    if(predicate(nextlinelist[i]))
+                    {
+                        nextlinelist[i] = null;
+                    }
+                }
+                FixLineEnd();
+            }
+            private static int currentline
+            {
+                get
+                {
+                    FindNextNull(out int index);
+                    return index + 1;
+                }
+            }
+
+
+
+            public static void Write(IEnumerable<TextData> line)
+            {
+                IEnumerator<TextData> e = line.GetEnumerator();
                 while (e.MoveNext())
                 {
                     Write(e.Current);
                 }
             }
-            public static void Write(WriteAble obj)
+            public static void Write(TextData obj)
             {
+                if(obj is TextData.NextLine)
+                {
+                    AddNextLine(obj as TextData.NextLine);
+                    currentxpos = 12;
+                    return;
+                }
+
                 TextObject textObj = new TextObject();
 
                 int width;
-                switch (obj)
-                {
-                    case WriteAble.Text text:
-                        textObj.data = obj as WriteAble.Complexed;
-                        width = GetStringWidth(text.str, Argument.StaticArgs.BaseFont);
-                        textObj.location = new Rectangle(currentxpos, currentypos, width, 20);
-                        currentxpos += width;
-                        Console.consoleApp.Write(textObj);
-                        break;
-                    case WriteAble.Button text:
-                        textObj.data = obj as WriteAble.Complexed;
-                        width = GetStringWidth(text.str, Argument.StaticArgs.BaseFont);
-                        textObj.location = new Rectangle(currentxpos, currentypos, width, 20);
-                        currentxpos += width;
-                        Console.consoleApp.Write(textObj);
-                        break;
-                    case WriteAble.InputText text:
-                        textObj.data = obj as WriteAble.Complexed;
-                        width = GetStringWidth(text.str, Argument.StaticArgs.BaseFont);
-                        textObj.location = new Rectangle(currentxpos, currentypos, width, 20);
-                        currentxpos += width;
-                        Console.consoleApp.Write(textObj);
-                        break;
-                    case WriteAble.NextLine nextline:
-                        currentxpos = 12;
-                        nextlinelist.Add(nextline);
-                        return;
-                    default:
-                        throw new Exception();
-                }
 
-
+                textObj.data = obj as TextData.Writeable;
+                width = GetStringWidth(textObj.data.str, Argument.StaticArgs.BaseFont);
+                textObj.location = new Rectangle(currentxpos, currentypos, width, 20);
+                currentxpos += width;
+                Console.consoleApp.Write(textObj);
 
             }
 
@@ -583,11 +676,10 @@ namespace RichConsole
                 nextlinelist.Clear();
             }
 
-            public static void Clear(Predicate<WriteAble> predicate)
+            public static void Clear(Predicate<TextData> predicate)
             {
-
                 Console.consoleApp.Clear(predicate);
-                int i = nextlinelist.RemoveAll(predicate);
+                RemoveAllLine(predicate);
             }
 
 
@@ -597,13 +689,7 @@ namespace RichConsole
 
 
 
-            private static int currentline
-            {
-                get
-                {
-                    return nextlinelist.Count + 1;
-                }
-            }
+            
             private static int currentypos
             {
                 get
@@ -626,13 +712,13 @@ namespace RichConsole
                 int length = text.Length;
                 return ((bytecount - length) / 2 + length) * 9 - 1;
 
-                Image fakeImage = new Bitmap(1, 1);
+                using Image fakeImage = new Bitmap(1, 1);
                 Graphics graphics = Graphics.FromImage(fakeImage);
                 return graphics.MeasureString(text, font).ToSize().Width - 4;
             }
             private static int GetStringHeight(string text, Font font)
             {
-                Image fakeImage = new Bitmap(1, 1);
+                using Image fakeImage = new Bitmap(1, 1);
                 Graphics graphics = Graphics.FromImage(fakeImage);
                 return graphics.MeasureString(text, font).ToSize().Height;
             }
@@ -665,162 +751,94 @@ namespace RichConsole
                 this.hoverbackcolor = hoverbackcolor;
             }
         }
-        public interface WriteAble
+        public class ButtonReturn
         {
-            public interface Complexed : WriteAble
+            public string name;
+            public string[] tags;
+        }
+        public abstract class TextData
+        {
+            public abstract class Writeable : TextData
             {
+                public override string ToString()
+                {
+                    return str;
+                }
                 public string str { get; set; }
-                public string name { get; set; }
                 public TextColor textColor { get; set; }
                 public Font font { get; set; }
             }
-            public class Text : Complexed
+            public class Text : Writeable
             {
-                public Text(string str)
+                public Text()
+                { 
+                    this.textColor = StaticArgs.BaseTextColor; 
+                }
+                public Text(string str) : this()
                 {
                     this.str = str;
-                    this.name = "";
-
                 }
-                public Text(string str, params string[] tags)
+                public Text(string str, params string[] tags) : this(str)
                 {
-                    this.str = str;
-                    this.name = "";
-                    this.tags = tags.ToList();
+                    this.arg.tags = tags;
                 }
-
-                private string _str;
-                public string str
-                {
-                    get
-                    {
-                        return _str;
-                    }
-                    set
-                    {
-                        _str = RichConsole.Console.FixString(value);
-                    }
-                }
-                public string name { get; set; } = "";
-                public List<string> tags { get; set; } = new List<string>();
-
-                public TextColor textColor { get; set; } = Argument.StaticArgs.BaseTextColor;
-                public Font font { get; set; } = Argument.StaticArgs.BaseFont;
-
-
             }
-            public class Button : Complexed
+            public class Button : Writeable
             {
-                public Button()
+                public Button() 
                 {
-
+                    this.textColor = StaticArgs.BaseButtonColor;
                 }
-                public Button(string str, string name)
-                {
-                    this.str = str;
-                    this.name = name;
-                }
-                public Button(string str, string name, params string[] tags)
+                public Button(string str, string name) : this()
                 {
                     this.str = str;
-                    this.name = name;
-                    this.tags = tags.ToList();
+                    this.arg.name = name;
                 }
-                private string _str;
-                public string str
+                public Button(string str, string name, params string[] tags) : this(str,name)
                 {
-                    get
-                    {
-                        return _str;
-                    }
-                    set
-                    {
-                        _str = RichConsole.Console.FixString(value);
-                    }
+                    this.arg.tags = tags;
                 }
-                public string name { get; set; }
-                public List<string> tags { get; set; } = new List<string>();
-
-                public TextColor textColor { get; set; } = Argument.StaticArgs.BaseButtonColor;
-                public Font font { get; set; } = Argument.StaticArgs.BaseFont;
-
-
             }
-            public class InputText : Complexed
+            public class InputText : Writeable
             {
-                public InputText()
+                public InputText() 
                 {
-
+                    this.textColor = StaticArgs.BaseInputTextColor;
                 }
-
-                public InputText(string str, string name)
-                {
-                    this.str = str;
-                    this.name = name;
-                }
-
-                public InputText(string str, string name, params string[] tags)
+                public InputText(string str, string name) : this()
                 {
                     this.str = str;
-                    this.name = name;
-                    this.tags = tags.ToList();
+                    this.arg.name = name;
                 }
-
-                private string _str;
-                public string str
+                public InputText(string str, string name, params string[] tags) : this(str, name)
                 {
-                    get
-                    {
-                        return _str;
-                    }
-                    set
-                    {
-                        _str = RichConsole.Console.FixString(value);
-                    }
+                    this.arg.tags = tags;
                 }
-                public string name { get; set; } = "";
-                public List<string> tags { get; set; } = new List<string>();
-
-                public TextColor textColor { get; set; } = Argument.StaticArgs.BaseInputTextColor;
-                public Font font { get; set; } = Argument.StaticArgs.BaseFont;
-
-
             }
-            public class NextLine : WriteAble
+            public class NextLine : TextData
             {
+                public override string ToString()
+                {
+                    return Environment.NewLine;
+                }
+                public NextLine() { }
                 public NextLine(params string[] tags)
                 {
-                    this.tags = tags.ToList();
+                    this.arg.tags = tags;
                 }
-                public List<string> tags { get; set; } = new List<string>();
 
 
             }
-
-
-
-            public List<string> tags { get; set; }
+            public ButtonReturn arg { get; set; } = new ButtonReturn();
         }
-
         public class TextObject
         {
-
-
-
-
             public Rectangle location;
-            public WriteAble.Complexed data;
+            public TextData.Writeable data;
         }
         public class ImageObject
         {
 
-        }
-
-        public class ReturnedButton
-        {
-            string value;
-            string name;
-            List<string> tags;
         }
     }
 
@@ -828,12 +846,14 @@ namespace RichConsole
     {
         public void Write(TextObject obj);
         public Task<string> ReadLine();
-        public Task<WriteAble.Button> ReadButton();
+        public Task<TextData.Button> ReadButton();
         public string GetInputText(string name);
-        public void Clear(Predicate<WriteAble> predicate);
+        public void Clear(Predicate<TextData> predicate);
 
 
         public bool Initialized { get; set; }
+
+        public Action CloseEvent { get; set; }
     }
     internal static class ExtensionMethods
     {

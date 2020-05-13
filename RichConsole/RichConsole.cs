@@ -19,16 +19,22 @@ namespace ConsoleApp
             InitializeComponent();
         }
 
-        private void Form1_Load(object sender, EventArgs e)
+        private void Form_Load(object sender, EventArgs e)
         {
 
         }
 
-        public void CreateControlQueue<T>(int count) where T : Control, new()
+        private void Form_FormClosed(object sender, EventArgs e)
+        {
+            CloseEvent();
+        }
+
+#region ControlQueueManage
+        public void CreateControlQueue(int count)
         {
             for (int i = 0; i < count; i++)
             {
-                T control = new T();
+                TextBox control = new TextBox();
                 control.Name = "ManagedControl";
                 control.Enabled = false;
                 control.Visible = false;
@@ -40,9 +46,9 @@ namespace ConsoleApp
                 ControlQueueCount++;
             }
         }
-        public T GetControl<T>() where T : Control
+        public TextBox GetControl()
         {
-
+            first:
             foreach (Control control in Controls)
             {
                 if (control.Name == "ManagedControl")
@@ -55,11 +61,17 @@ namespace ConsoleApp
                             control.Visible = true;
                             control.Tag = null;
                         });
-                        return control as T;
+                        return control as TextBox;
                     }
                 }
             }
-            throw new Exception("out of control queue");
+            if(ControlQueueCount == 0)
+            {
+                CreateControlQueue(12);
+                goto first;
+            }
+            CreateControlQueue(ControlQueueCount);
+            goto first;
         }
         public void DisposeControl(Control control)
         {
@@ -89,13 +101,14 @@ namespace ConsoleApp
         }
 
         public int ControlQueueCount = 0;
+#endregion ControlQueueManage
 
         private void CreateText(TextObject textobj)
         {
             Invoke((MethodInvoker)delegate ()
             {
-                TextBox ctrl = GetControl<TextBox>();
-                WriteAble.Text text = textobj.data as WriteAble.Text;
+                TextBox ctrl = GetControl();
+                TextData.Text text = textobj.data as TextData.Text;
 
                 ctrl.Location = new Point(textobj.location.X, textobj.location.Y);
                 ctrl.Height = textobj.location.Height;
@@ -128,8 +141,8 @@ namespace ConsoleApp
         {
             Invoke((MethodInvoker)delegate ()
             {
-                TextBox ctrl = GetControl<TextBox>();
-                WriteAble.Button btn = textobj.data as WriteAble.Button;
+                TextBox ctrl = GetControl();
+                TextData.Button btn = textobj.data as TextData.Button;
 
                 ctrl.Location = new Point(textobj.location.X, textobj.location.Y);
                 ctrl.Height = textobj.location.Height;
@@ -159,21 +172,12 @@ namespace ConsoleApp
                 ctrl.Text = btn.str;
             });
         }
-
-
-
-
-
-
-
-
-
         private void CreateInputText(TextObject textobj)
         {
             Invoke((MethodInvoker)delegate ()
             {
-                TextBox ctrl = GetControl<TextBox>();
-                WriteAble.InputText text = textobj.data as WriteAble.InputText;
+                TextBox ctrl = GetControl();
+                TextData.InputText text = textobj.data as TextData.InputText;
 
                 ctrl.Location = new Point(textobj.location.X, textobj.location.Y);
                 ctrl.Height = textobj.location.Height;
@@ -204,20 +208,20 @@ namespace ConsoleApp
         }
         private void MouseEnterEvent(object sender, EventArgs e)
         {
-            TextColor color = ((WriteAble.Complexed)((TextBox)sender).Tag).textColor;
+            TextColor color = ((TextData.Writeable)((TextBox)sender).Tag).textColor;
             ((TextBox)sender).ForeColor = color.hoverbasecolor;
             ((TextBox)sender).BackColor = color.hoverbackcolor;
         }
         private void MouseLeaveEvent(object sender, EventArgs e)
         {
-            TextColor color = ((WriteAble.Complexed)((TextBox)sender).Tag).textColor;
+            TextColor color = ((TextData.Writeable)((TextBox)sender).Tag).textColor;
             ((TextBox)sender).ForeColor = color.basecolor;
             ((TextBox)sender).BackColor = color.backcolor;
         }
         private void ButtonClickEvent(object sender, EventArgs e)
         {
             buttonclicked = true;
-            buttonvalue = (WriteAble.Button)((TextBox)sender).Tag;
+            buttonvalue = (TextData.Button)((TextBox)sender).Tag;
         }
 
 
@@ -226,9 +230,10 @@ namespace ConsoleApp
         private static string linevalue;
 
         private static bool buttonclicked = false;
-        private static WriteAble.Button buttonvalue;
+        private static TextData.Button buttonvalue;
 
         public bool Initialized { get; set; } = false;
+        public Action CloseEvent { get; set; } = () => System.Environment.Exit(0);
 
         private void ConsoleInput_KeyPress(object sender, KeyPressEventArgs e)
         {
@@ -249,7 +254,7 @@ namespace ConsoleApp
 
         private void RichConsole_Shown(object sender, EventArgs e)
         {
-            CreateControlQueue<TextBox>(100);
+            CreateControlQueue(100);
             Initialized = true;
         }
 
@@ -263,13 +268,13 @@ namespace ConsoleApp
         {
             switch (obj.data)
             {
-                case WriteAble.Text _:
+                case TextData.Text _:
                     CreateText(obj);
                     break;
-                case WriteAble.Button _:
+                case TextData.Button _:
                     CreateButton(obj);
                     break;
-                case WriteAble.InputText _:
+                case TextData.InputText _:
                     CreateInputText(obj);
                     break;
             }
@@ -282,21 +287,21 @@ namespace ConsoleApp
             return linevalue;
         }
 
-        public async Task<WriteAble.Button> ReadButton()
+        public async Task<TextData.Button> ReadButton()
         {
             while (!buttonclicked) await Task.Delay(25);
             buttonclicked = false;
             return buttonvalue;
         }
 
-        public void Clear(Predicate<WriteAble> predicate)
+        public void Clear(Predicate<TextData> predicate)
         {
             List<Control> removelist = new List<Control>();
             foreach (Control ctrl in Controls)
             {
                 if (ctrl.Name == "ManagedControl" && ctrl.Enabled == true && ctrl.Visible == true)
                 {
-                    if (predicate((WriteAble)ctrl.Tag))
+                    if (predicate((TextData)ctrl.Tag))
                     {
                         removelist.Add(ctrl);
                     }
@@ -324,7 +329,7 @@ namespace ConsoleApp
         {
             foreach (Control item in Controls)
             {
-                if (item.Tag is WriteAble.InputText)
+                if (item.Tag is TextData.InputText)
                 {
                     return ((TextBox)item).Text;
                 }
@@ -332,4 +337,5 @@ namespace ConsoleApp
             throw new Exception("nofindname");
         }
     }
+
 }

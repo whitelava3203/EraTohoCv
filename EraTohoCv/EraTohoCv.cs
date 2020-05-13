@@ -9,13 +9,213 @@ using static EraTohoCv.SystemRelated;
 using Format = RichConsole.Console.Format;
 using Console = RichConsole.Console.SimpleConsole;
 using RichConsole.Argument;
-
+using RichConsole;
 
 namespace EraTohoCv
 {
-    public class UI : Named
+    #region UISystem
+    public abstract class UIBase : Named
     {
-        
+
+        public virtual string 이름 { get; set; }
+
+        private TerminateStatus status = new TerminateStatus();
+
+        public abstract Format GetFormat();
+        virtual protected void ButtonPressEvent(ButtonReturn btn)
+        {
+            throw new NotImplementedException();
+        }
+        public virtual TerminateStatus ButtonPressed(ButtonReturn btn)
+        {
+            ButtonPressEvent(btn);
+            return this.status;
+        }
+        protected virtual void Terminate()
+        {
+            this.status.isTerminating = true;
+            this.status.AndAction = null;
+        }
+        protected virtual void TerminateAnd(Action act)
+        {
+            this.status.isTerminating = true;
+            this.status.AndAction = act;
+        }
+        public class TerminateStatus
+        {
+            public bool isTerminating = false;
+            public Action AndAction = null;
+        }
+    }
+    public abstract class UI : Screen
+    {
+        public virtual void Start()
+        {
+
+            TerminateStatus status = new TerminateStatus();
+            while (!status.isTerminating)
+            {
+                Console.Clear();
+                this.GetFormat().Print();
+                status = this.ButtonPressed(Console.ReadButton());
+
+            }
+            if (status.AndAction == null)
+            {
+                return;
+            }
+            status.AndAction.Invoke();
+        }
+    }
+    public abstract class Screen<ParentType> : UIBase where ParentType : UIBase
+    {
+        protected ParentType Parent { get; set; }
+        public Screen(ParentType parentType)
+        {
+            this.Parent = parentType;
+        }
+
+        public UIBase[][] _InnerSectors;
+        public IEnumerable<UIBase> InnerSectors
+        {
+            get
+            {
+                foreach(UIBase[] sectors in _InnerSectors)
+                {
+                    foreach(UIBase sector in sectors)
+                    {
+                        yield return sector;
+                    }
+                }
+                yield break;
+            }
+        }
+        public override Format GetFormat()
+        {
+
+            List<Format> bigformats = new List<Format>(_InnerSectors.Length);
+            foreach (UIBase[] sectors in _InnerSectors)
+            {
+                List<Format> formats = new List<Format>(sectors.Length);
+                foreach (UIBase sector in sectors)
+                {
+                    formats.Add(sector.GetFormat());
+                }
+                bigformats.Add(Format.Stack(formats.ToArray()));
+
+            }
+            ;
+
+            return Format.Concat(bigformats.ToArray()).AddTags(this.이름);
+
+        }
+
+        protected override void ButtonPressEvent(ButtonReturn btn)
+        {
+            string name = FixTag(ref btn);
+
+            foreach(UIBase sector in InnerSectors)
+            {
+                if(sector.이름 == name)
+                {
+                    TerminateStatus status = sector.ButtonPressed(btn);
+                    if (status.isTerminating)
+                    {
+                        this.TerminateAnd(status.AndAction);
+                    }
+                    return;
+                }
+            }
+            throw new Exception("버튼이 없음");
+            return;
+
+
+            string FixTag(ref ButtonReturn btn)
+            {
+                btn.tags = btn.tags.Take(btn.tags.Length - 1).ToArray();
+                return btn.tags.Last();
+            }
+        }
+    }
+    public abstract class Screen : Screen<NoParent>
+    {
+        public Screen() : base(null)
+        {
+
+        }
+    }
+    public abstract class StaticSector<ParentType> : UIBase where ParentType : UIBase
+    {
+        protected ParentType Parent { get; set; }
+        public StaticSector(ParentType parentType)
+        {
+            this.Parent = parentType;
+        }
+
+        protected Format FormatData;
+        public override Format GetFormat()
+        {
+            return FormatData.AddTags(this.이름);
+        }
+        protected override void ButtonPressEvent(ButtonReturn btn)
+        {
+            throw new NotImplementedException();
+        }
+    }
+    public abstract class StaticSector : StaticSector<NoParent>
+    {
+        public StaticSector() : base(null)
+        {
+
+        }
+    }
+    public abstract class Sector<ParentType> : UIBase where ParentType : UIBase
+    {
+        protected ParentType Parent { get; set; }
+        public Sector(ParentType parentType)
+        {
+            this.Parent = parentType;
+        }
+    }
+    public abstract class Sector : Sector<NoParent>
+    {
+        public Sector() : base(null)
+        {
+
+        }
+    }
+    public sealed class NoParent : UIBase
+    {
+        public override string 이름
+        {
+            get => throw new NotImplementedException("NoParent");
+            set => throw new NotImplementedException("NoParent");
+        }
+        protected override void ButtonPressEvent(ButtonReturn btn)
+        {
+            throw new NotImplementedException("NoParent");
+        }
+        public override TerminateStatus ButtonPressed(ButtonReturn btn)
+        {
+            throw new NotImplementedException("NoParent");
+        }
+        public override Format GetFormat()
+        {
+            throw new NotImplementedException("NoParent");
+        }
+        protected override void Terminate()
+        {
+            throw new NotImplementedException();
+        }
+        protected override void TerminateAnd(Action act)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    #endregion UISystem
+    public abstract class OldUI
+    {
 
         public static Format CharacterSelection(Predicate<CharacterRelated.Character> checker, params string[] tags)
         {
@@ -47,7 +247,7 @@ namespace EraTohoCv
         }
 
 
-        public string 이름 { get; set; }
+        
         public static Format TopScreen(CharacterRelated.Character cha)
         {
             Format format = new Format("TopScreen");
@@ -59,7 +259,7 @@ namespace EraTohoCv
         }
         
 
-        public class InCastle : UI
+        public class UICastle : OldUI
         {
             public NameList<Command> commands
             {
@@ -115,7 +315,7 @@ namespace EraTohoCv
 
                     public class Button : RightSide
                     {
-                        public Func<WriteAble.Button, CharacterRelated.Character, IEnumerator> ButtonClicked;
+                        public Func<ButtonReturn, CharacterRelated.Character, IEnumerator> ButtonClicked;
 
 
                     }
@@ -125,7 +325,7 @@ namespace EraTohoCv
 
             }
 
-            public IEnumerator GetRightSideBtnEnumerator(CharacterRelated.Character cha, WriteAble.Button btn)
+            public IEnumerator GetRightSideBtnEnumerator(CharacterRelated.Character cha, ButtonReturn btn)
             {
                 foreach (string tag in btn.tags)
                 {
@@ -142,47 +342,155 @@ namespace EraTohoCv
 
         }
 
-
-
-        public static void AddBasicUI()
+        public class UIWorldMap : OldUI
         {
-            //uiInCastle.AddCommand("친교", "만나러간다", new Format());
-            //uiInCastle.AddCommand("모략", "　잠입한다", new Format());
-            //uiInCastle.AddCommand("모략", "투옥시킨다", new Format());
-            //uiInCastle.AddCommand("모략", "　명령한다", new Format());
-            //uiInCastle.AddCommand("군사", "　병사모집", new Format());
-            //uiInCastle.AddCommand("군사", "　분대설정", new Format());
-            //uiInCastle.AddCommand("군사", "　　　출격", new Format());
-            //uiInCastle.AddCommand("포로", "포로의처리", new Format());
-            //uiInCastle.AddCommand("정무", "스킬을습득", new Format());
-            //uiInCastle.AddCommand("정무", "　　　노동", new Format());
-            //uiInCastle.AddCommand("정무", "사관을모집", new Format());
-            //uiInCastle.AddCommand("정무", "　영지탐색", new Format());
-            //uiInCastle.AddCommand("정보", "　능력표시", new Format());
-            //uiInCastle.AddCommand("정보", "　관계일람", new Format());
-            //uiInCastle.AddCommand("특수", "　제국방문", new Format());
-
-
-
-
-
-            //uiInCastle.AddCommand("매매", "　　아이탬", new Format());
-
-
-
 
         }
-
         
     }
 
-    public class GameRelated
+    public class UIRelated
+    {
+        public class Castle : UI
+        {
+            public CharacterRelated.Character currentCharacter;
+
+            public Castle()
+            {
+                this.이름 = "UICastle";
+                this._InnerSectors = new UIBase[][]
+                {
+                    new UIBase[]{new Top(this)},
+                    new UIBase[]{new Middle(this)}
+                };
+                
+            }
+
+            public class Top : Sector<Castle>
+            {
+                public Top(Castle parent) : base(parent)
+                {
+                    this.이름 = "Top";
+                }
+                public override Format GetFormat()
+                {
+                    CharacterRelated.Character cha = Parent.currentCharacter;
+                    Format format = new Format("TopScreen");
+                    format.AppendLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    format.AppendLine(String.Format("{0}일   {1}:{2}:{3}", GameTime.Day, GameTime.Hour, GameTime.Minute, GameTime.Second));
+                    (format + "체력　:　" + cha.스탯.체력.ToString() + "/" + cha.스탯.최대체력.ToString() + "　기력　:　 " + cha.스탯.기력.ToString() + " / " + cha.스탯.최대기력.ToString() - "[월드맵]" + "　/　" - "[세이브]" + "　/　" - "[로드]").AppendLine();
+                    format.AppendLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    return format;
+                }
+            }
+
+            public class Middle : Screen<Castle>
+            {
+                public NameList<Command> commands = new NameList<Command>();
+
+
+                public Middle(Castle parent) : base(parent)
+                {
+                    this.이름 = "Middle";
+                    this._InnerSectors = new UIBase[][]
+                    {
+                        new UIBase[]
+                        {
+                            new Left(this), new EmptyRight(this)
+                        }
+                    };
+                }
+                public UIBase RightSide { get => this._InnerSectors[0][1]; set => this._InnerSectors[0][1] = value; }
+
+                public class Left : Sector<Middle>
+                {
+                    public Left(Middle parent) : base(parent) { }
+
+                    public override Format GetFormat()
+                    {
+                        Format format = new Format("LeftSide");
+                        foreach (Command command in Parent.commands)
+                        {
+                            format.Append("[").AppendButton(command.showingName, command.이름).Append("]").AppendLine("┃");
+                        }
+                        return format;
+                    }
+
+                    protected override void ButtonPressEvent(ButtonReturn btn)
+                    {
+                        Command c = Parent.commands[btn.name];
+                        switch(c.type)
+                        {
+                            case Command.Type.Instant:
+                                Parent.RightSide = Middle.Empty;
+                                c.ButtonPressed(null);
+                                break;
+                            case Command.Type.RightSide:
+                                Parent.RightSide = c;
+                                break;
+                            default:
+                                throw new Exception();
+                        }
+                    }
+                }
+
+                public static EmptyRight Empty = new EmptyRight();
+                public class EmptyRight : Sector
+                {
+                    public override Format GetFormat()
+                    {
+                        return new Format();
+                    }
+                }
+
+
+                public abstract class Command : UIBase, Named
+                {
+                    public string showingName;
+                    public Type type;
+
+                    public enum Type
+                    {
+                        Instant,
+                        RightSide
+                    }
+                    public abstract class StaticCommand : Command
+                    {
+                        public Format format;
+                        public override Format GetFormat() => format;
+                    }
+
+                    public class 쉰다 : StaticCommand
+                    {
+                        public 쉰다()
+                        {
+                            this.이름 = "쉰다";
+                            this.format = new Format().AppendButton("[10분]","10");
+                        }
+                        protected override void ButtonPressEvent(ButtonReturn btn)
+                        {
+                            
+                        }
+                    }
+                }
+
+                
+
+
+            }
+        }
+
+
+    }
+
+
+    public static class GameRelated
     {
         public static void FirstStart()
         {
             Console.WriteLine("아직 간단한 텍스트 전략 게임");
             Console.WriteLine("제작자 : 텍붕이");
-            (new Format() - "[새 게임]" + "　" - "[불러오기]").InvokeLine();
+            (new Format() - "[새 게임]" + "　" - "[불러오기]").PrintLine();
             string btn = Console.ReadButtonName();
             Console.Clear();
             if (btn == "[새 게임]")
@@ -202,13 +510,13 @@ namespace EraTohoCv
                 Console.WriteLine("플레이할 시나리오 선택 : ");
                 foreach (SenarioRelated.Senario s in senarios)
                 {
-                    new Format().AppendButton(s.이름).AppendLine().Invoke();
+                    new Format().AppendButton(s.이름).AppendLine().Print();
                 }
                 string btn = Console.ReadButtonName();
                 Console.Clear();
                 SenarioRelated.Senario senario = senarios[btn];
-                senario.설명.Invoke();
-                (new Format() + "이 시나리오를 선택합니까 ? " - "[예]" + ",　" - "[아니오]").InvokeLine();
+                senario.설명.Print();
+                (new Format() + "이 시나리오를 선택합니까 ? " - "[예]" + ",　" - "[아니오]").PrintLine();
                 
                 btn = Console.ReadButton().name;
                 if(btn == "[예]")
@@ -227,7 +535,7 @@ namespace EraTohoCv
         public static NameList<SenarioRelated.Senario> senarios = new NameList<SenarioRelated.Senario>();
     }
 
-    public class SystemRelated
+    public static class SystemRelated
     {
         public static Random rand = new Random();
         public static CharacterRelated.Character CurrentCharacter;
@@ -316,7 +624,7 @@ namespace EraTohoCv
         }
     }
 
-    public class WarRelated
+    public static class WarRelated
     {
 
         public static IEnumerator Fight(ArmyUnit army1, ArmyUnit army2)
@@ -546,7 +854,7 @@ namespace EraTohoCv
         }
     }
 
-    public class MapRelated
+    public static class MapRelated
     {
         public class Map : Named
         {
@@ -555,7 +863,6 @@ namespace EraTohoCv
             public NameList<Location> locationlist = new NameList<Location>();
             public Func<Format> WorldMapSelection;
         }
-
         public class Location : Named
         {
             public string 이름 { get; set; }
@@ -580,7 +887,6 @@ namespace EraTohoCv
             }
             public List<Connection> connections = new List<Connection>();
         }
-
         public class Castle : Location
         {
             public bool Captured;
@@ -593,7 +899,6 @@ namespace EraTohoCv
             //200 ~ 400 : 폭동 직전
             //400 ~ 600 : 시위중
             //600 ~ 800 : 욕을 좀 먹음
-            //800 ~ : 성주말 잘따름
 
             public int 치안 = 1000;
             //~ 200 : 대낮에 살인사건이 일어나고 조폭끼리 싸우고있음
@@ -622,21 +927,7 @@ namespace EraTohoCv
             public ResourceRelated.ResourceUnit resource = new ResourceRelated.ResourceUnit();
             public BuildingRelated.BuildingUnit building = new BuildingRelated.BuildingUnit();
 
-            public CharacterRelated.Character 성주
-            {
-                get
-                {
-                    foreach (CharacterRelated.Character cha in StaticUse.dataStorage.무장)
-                    {
-                        if(cha.계급 >= CharacterRelated.Rank.성주)//성주 또는 왕
-                        {
-                            if (cha.소유한성 == this)
-                                return cha;
-                        }
-                    }
-                    throw new Exception();
-                }
-            }
+
 
             public EventCollection eventCollection = new EventCollection();
             public NationRelated.Nation 소속국가;
@@ -794,18 +1085,15 @@ namespace EraTohoCv
             }
 
             public CastleTask.CastleTaskUnit tasks;
-
-            
-
             public class CastleTask
             {
                 public class CastleTaskUnit : List<CastleTaskInfo>
                 {
-                    private Castle castle;
+                    private Castle location;
 
                     public CastleTaskUnit(Castle castle)
                     {
-                        this.castle = castle;
+                        this.location = castle;
                     }
 
                     public double 현재작업진행도
@@ -837,13 +1125,13 @@ namespace EraTohoCv
                             {
                                 if(base[0].진행도 >= base[0].type.요구노동력)
                                 {
-                                    base[0].type.FinishAction(castle);
+                                    base[0].type.FinishAction(location);
                                     base.RemoveAt(0);
                                 }
                                 else
                                 {
                                     //task 진행
-                                    base[0].진행도 += (decimal)castle.resource["노동력"].Count / (decimal)86400;
+                                    base[0].진행도 += (decimal)location.resource["노동력"].Count / (decimal)86400;
                                 }
                             }
                             else
@@ -885,18 +1173,13 @@ namespace EraTohoCv
                 }
             }
         }
-
         public class Crossroad : Location
         {
             
         }
-
-
-
         public class Road
         {
-            NameList<CharacterRelated.Character> 무장
-            { get; }
+            NameList<CharacterRelated.Character> 무장 { get; }
             NameList<WarRelated.ArmyUnit> 군대 { get; }
 
             public double 길이;
@@ -920,7 +1203,6 @@ namespace EraTohoCv
                 this.시야범위 = visblearea;
             }
         }
-
         public class Connection
         {
             public Location 위치;
@@ -963,7 +1245,7 @@ namespace EraTohoCv
         }
     }
 
-    public class CharacterRelated
+    public static class CharacterRelated
     {
 
         public class Character : Named, Moveable
@@ -991,7 +1273,6 @@ namespace EraTohoCv
 
             public NationRelated.Nation 소속국가;
             public Rank 계급;
-            public MapRelated.Castle 소유한성;
             
 
 
@@ -1018,12 +1299,10 @@ namespace EraTohoCv
                 {
                     //Console.WriteLine(this.이름 + "의 턴 진행중");
 
-                    UI.InCastle inCastle = new UI.InCastle();
+                    OldUI.UICastle inCastle = new OldUI.UICastle();
                     switch (this.계급)
                     {
                         case Rank.왕:
-                            break;
-                        case Rank.성주:
                             break;
                         case Rank.장교:
                             break;
@@ -1033,24 +1312,24 @@ namespace EraTohoCv
                     {
 
                         Console.Clear();
-                        UI.TopScreen(this).Invoke();
-                        Format.Stack(inCastle.LeftSide(),rightside).Invoke();
+                        OldUI.TopScreen(this).Print();
+                        Format.Stack(inCastle.LeftSide(),rightside).Print();
                         
 
-                        WriteAble.Button btn = Console.ReadButton();
+                        ButtonReturn btn = Console.ReadButton();
                         if (btn.tags.Contains("LeftSide"))
                         {
-                            if(inCastle.commands[btn.name] is UI.InCastle.Command.RightSide)
+                            if(inCastle.commands[btn.name] is OldUI.UICastle.Command.RightSide)
                             {
-                                rightside = (inCastle.commands[btn.name] as UI.InCastle.Command.RightSide).InnerScreen;
+                                rightside = (inCastle.commands[btn.name] as OldUI.UICastle.Command.RightSide).InnerScreen;
                             }
-                            else if(inCastle.commands[btn.name] is UI.InCastle.Command.OpenNewScreen)
+                            else if(inCastle.commands[btn.name] is OldUI.UICastle.Command.OpenNewScreen)
                             {
                                 //미니맵같은거 여는코드 여기다 넣어야함
                             }
-                            else if(inCastle.commands[btn.name] is UI.InCastle.Command.SimpleButton)
+                            else if(inCastle.commands[btn.name] is OldUI.UICastle.Command.SimpleButton)
                             {
-                                IEnumerator e = (inCastle.commands[btn.name] as UI.InCastle.Command.SimpleButton).Clicked(this);
+                                IEnumerator e = (inCastle.commands[btn.name] as OldUI.UICastle.Command.SimpleButton).Clicked(this);
                                 while (e.MoveNext())
                                 {
                                     yield return null;
@@ -1085,7 +1364,6 @@ namespace EraTohoCv
         {
             방랑자,
             장교,
-            성주,
             왕
         }
 
@@ -1141,7 +1419,7 @@ namespace EraTohoCv
         }
     }
     
-    public class NationRelated
+    public static class NationRelated
     {
         public class Nation : Named
         {
@@ -1227,10 +1505,6 @@ namespace EraTohoCv
 
         public class Technology : NameList<Technology.SingleTech>
         {
-
-
-
-
             public class SingleTech : Named
             {
                 public List<SingleTech> 요구기술 = new List<SingleTech>();
@@ -1249,7 +1523,7 @@ namespace EraTohoCv
         }
     }
     
-    public class SenarioRelated
+    public static class SenarioRelated
     {
         public class Senario : Named
         {
@@ -1265,16 +1539,13 @@ namespace EraTohoCv
                 StaticUse.dataStorage = this.데이터;
                 Console.Clear();
                 Console.WriteLine("플레이할 무장을 선택");
-                StaticUse.dataStorage.맵.WorldMapSelection().Invoke();
+                StaticUse.dataStorage.맵.WorldMapSelection().Print();
 
 
                 while (true)
                 {
                     
-                    
-
-
-                    WriteAble.Button btn = Console.ReadButtonSecure("CharacterSelection");
+                    ButtonReturn btn = Console.ReadButtonSecure("CharacterSelection");
                     if (btn.tags.Contains("CharacterSelection"))
                     {
                         CharacterRelated.Character cha = StaticUse.dataStorage.무장[btn.name];
@@ -1286,7 +1557,7 @@ namespace EraTohoCv
                     {
                         Console.Clear("CharacterSelection");
                         MapRelated.Location loc = StaticUse.dataStorage.맵.locationlist[btn.name];
-                        UI.CharacterSelection(loc.무장).Invoke();
+                        OldUI.CharacterSelection(loc.무장).Print();
                     }
                     else
                     {
@@ -1296,16 +1567,9 @@ namespace EraTohoCv
                 }
             }
         }
-
-        public void GetDefaultSenario()
-        {
-            
-        }
-
-        
     }
 
-    public class ResourceRelated
+    public static class ResourceRelated
     {
 
         public class ResourceUnit : NameList<ResourceInfo>
@@ -1388,7 +1652,7 @@ namespace EraTohoCv
         }
     }
 
-    public class BuildingRelated
+    public static class BuildingRelated
     {
         public class BuildingUnit : NameList<BuildingInfo>
         {
@@ -1455,6 +1719,8 @@ namespace EraTohoCv
         }
     }
 
+
+
     public interface Attribute : Named
     {
         public class Modifier<T> : Attribute
@@ -1508,7 +1774,7 @@ namespace EraTohoCv
         public NameList<ResourceRelated.ResourceType> resources = new NameList<ResourceRelated.ResourceType>();
         public NameList<BuildingRelated.BuildingType> buildings = new NameList<BuildingRelated.BuildingType>();
         public NameList<NationRelated.Technology.SingleTech> techs = new NameList<NationRelated.Technology.SingleTech>();
-        public NameList<UI.InCastle.Command> castlecommands = new NameList<UI.InCastle.Command>();
+        public NameList<OldUI.UICastle.Command> castlecommands = new NameList<OldUI.UICastle.Command>();
     }
     public class SaveFile
     {
@@ -1519,7 +1785,7 @@ namespace EraTohoCv
         public NameList<NationRelated.Nation> 나라 = new NameList<NationRelated.Nation>();
     }
 
-    public class Debug
+    public static class Debug
     {
         private static SenarioRelated.Senario senario = new SenarioRelated.Senario();
         public static SenarioRelated.Senario CreateKoreanWar()
@@ -2727,12 +2993,12 @@ namespace EraTohoCv
             return typelist;
         }
 
-        public static NameList<UI.InCastle.Command> GetDefaultUICastleCommands()
+        public static NameList<OldUI.UICastle.Command> GetDefaultUICastleCommands()
         {
 
-            NameList<UI.InCastle.Command> commands = new NameList<UI.InCastle.Command>();
+            NameList<OldUI.UICastle.Command> commands = new NameList<OldUI.UICastle.Command>();
 
-            UI.InCastle.Command.RightSide.Button c1 = new UI.InCastle.Command.RightSide.Button();
+            OldUI.UICastle.Command.RightSide.Button c1 = new OldUI.UICastle.Command.RightSide.Button();
             c1.category = "특수";
             c1.이름 = "쉰다";
             c1.ShowingName = "      쉰다";
@@ -2751,7 +3017,7 @@ namespace EraTohoCv
                 return true;
             };
             c1.ButtonClicked = 쉰다;
-            IEnumerator 쉰다(WriteAble.Button btn, CharacterRelated.Character cha)
+            IEnumerator 쉰다(ButtonReturn btn, CharacterRelated.Character cha)
             {
                 IEnumerator waiter;
                 switch (btn.name)
@@ -2783,7 +3049,7 @@ namespace EraTohoCv
 
 
 
-            UI.InCastle.Command.SimpleButton c2 = new UI.InCastle.Command.SimpleButton();
+            OldUI.UICastle.Command.SimpleButton c2 = new OldUI.UICastle.Command.SimpleButton();
             c2.category = "특수";
             c2.이름 = "잔다";
             c2.ShowingName = "      잔다";
@@ -2811,31 +3077,41 @@ namespace EraTohoCv
             commands.Add(c2);
 
 
-            UI.InCastle.Command.OpenNewScreen c3 = new UI.InCastle.Command.OpenNewScreen();
-            c2.category = "특수";
-            c2.이름 = "월드맵";
-            c2.ShowingName = "     월드맵";
-            c2.조건 = (cha) =>
+            OldUI.UICastle.Command.OpenNewScreen c3 = new OldUI.UICastle.Command.OpenNewScreen();
+            c3.category = "특수";
+            c3.이름 = "월드맵";
+            c3.ShowingName = "     월드맵";
+            c3.조건 = (cha) =>
             {
-                return true;
+                if(cha.계급 != CharacterRelated.Rank.왕)
+                    return true;
+                return false;
             };
+            c3.NewScreen = () =>
+            {
+                Format f = new Format();
+                return f;
+            };
+            
+
+
             return commands;
         }
     }
 
     public interface Named : Named<string> { }
     public class NameList<T> : NameList<T, string> where T : Named { }
-    public interface Named<T>
+    public interface Named<NameType>
     {
-        public T 이름 { get; set; }
+        public NameType 이름 { get; set; }
     }
-    public class NameList<T1, T2> : List<T1> where T1 : Named<T2>
+    public class NameList<T, NameType> : List<T> where T : Named<NameType>
     {
-        public T1 this[T2 name]
+        public T this[NameType name]
         {
             get
             {
-                foreach (T1 item in this)
+                foreach (T item in this)
                 {
                     if (item.이름.Equals(name))
                         return item;
@@ -2844,10 +3120,10 @@ namespace EraTohoCv
             }
         }
 
-        public NameList<T1, T2> FindNameAll(T2 name)
+        public NameList<T, NameType> FindNameAll(NameType name)
         {
-            NameList<T1, T2> namelist = new NameList<T1, T2>();
-            foreach (T1 item in this)
+            NameList<T, NameType> namelist = new NameList<T, NameType>();
+            foreach (T item in this)
             {
                 if (item.이름.Equals(name))
                     namelist.Add(item);
@@ -2855,9 +3131,9 @@ namespace EraTohoCv
             return namelist;
         }
 
-        public bool CheckName(T2 name)
+        public bool CheckName(NameType name)
         {
-            foreach (T1 item in this)
+            foreach (T item in this)
             {
                 if (item.이름.Equals(name))
                     return true;
@@ -2865,9 +3141,9 @@ namespace EraTohoCv
             return false;
         }
 
-        public bool TryGetName(T2 name, out T1 value)
+        public bool TryGetName(NameType name, out T value)
         {
-            foreach (T1 item in this)
+            foreach (T item in this)
             {
                 if (item.이름.Equals(name))
                 {
@@ -2888,7 +3164,6 @@ namespace EraTohoCv
         public int 도로위치 { get; set; }
         public MapRelated.Location 위치 { get; set; }
     }
-
     public class Event : Named<Event.Type>
     {
         //private bool Initialized = false;
@@ -2938,7 +3213,7 @@ namespace EraTohoCv
     {
         public static int Range(this int i,int range)
         {
-            return i + rand.Next(-1*range,range);
+            return i + SystemRelated.rand.Next(-1*range,range);
         }
 
         public static int Multiply(this int i, double val)
